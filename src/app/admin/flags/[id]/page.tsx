@@ -1,9 +1,9 @@
-// src/app/admin/flags/[id]/page.tsx - Complete version with all functionality
+// src/app/admin/flags/[id]/page.tsx - Fixed with use() hook
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-// import { useSession } from "next-auth/react";
+import { useState, useEffect, use } from "react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image"
 import Link from "next/link";
@@ -48,58 +48,56 @@ interface FlagDetail {
     exampleUsage?: string;
     createdAt: string;
   };
-  reviewedBy?: {
+  resolvedBy?: {
     name: string;
     email: string;
     role: string;
   };
-  reviewedAt?: string;
-  notes?: string;
+  resolvedAt?: string;
+  resolution?: string;
 }
 
 export default function FlagReviewPage({ params }: FlagPageProps) {
-  // const { data: session } = useSession();
+  const { data: session } = useSession();
   const router = useRouter();
+  const resolvedParams = use(params); // Unwrap the Promise
+  
   const [flag, setFlag] = useState<FlagDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [processing, setProcessing] = useState(false);
-  const [flagId, setFlagId] = useState<string>("");
   const [reviewNotes, setReviewNotes] = useState("");
 
-  // Extract id from async params
   useEffect(() => {
-    const getId = async () => {
-      const resolvedParams = await params;
-      setFlagId(resolvedParams.id);
-    };
-    getId();
-  }, [params]);
+    if (!session) {
+      router.push("/auth/signin");
+      return;
+    }
 
-  const fetchFlag = useCallback(async () => {
-    if (!flagId) return;
+    if (!["ADMIN", "MODERATOR", "EXPERT"].includes(session.user.role)) {
+      router.push("/");
+      return;
+    }
 
-    try {
-      const response = await fetch(`/api/admin/flags/${flagId}`);
-      const data = await response.json();
+    const fetchFlag = async () => {
+      try {
+        const response = await fetch(`/api/admin/flags/${resolvedParams.id}`);
+        const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch flag");
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to fetch flag");
+        }
+
+        setFlag(data.flag);
+      } catch (error) {
+        setError(error instanceof Error ? error.message : "Failed to load flag");
+      } finally {
+        setLoading(false);
       }
+    };
 
-      setFlag(data.flag);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Failed to load flag");
-    } finally {
-      setLoading(false);
-    }
-  }, [flagId]);
-
-  useEffect(() => {
-    if (flagId) {
-      fetchFlag();
-    }
-  }, [flagId, fetchFlag]);
+    fetchFlag();
+  }, [session, router, resolvedParams.id]);
 
   const handleResolve = async () => {
     if (!flag) return;
@@ -107,16 +105,17 @@ export default function FlagReviewPage({ params }: FlagPageProps) {
     setProcessing(true);
     try {
       const response = await fetch(`/api/admin/flags/${flag.id}`, {
-        method: "PATCH",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          status: "RESOLVED",
-          notes: reviewNotes.trim() || undefined,
+          action: "RESOLVE",
+          resolution: reviewNotes.trim() || "Flag resolved by admin",
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to resolve flag");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to resolve flag");
       }
 
       router.push("/admin/flags?message=resolved");
@@ -133,16 +132,17 @@ export default function FlagReviewPage({ params }: FlagPageProps) {
     setProcessing(true);
     try {
       const response = await fetch(`/api/admin/flags/${flag.id}`, {
-        method: "PATCH",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          status: "DISMISSED",
-          notes: reviewNotes.trim() || undefined,
+          action: "DISMISS",
+          resolution: reviewNotes.trim() || "Flag dismissed by admin",
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to dismiss flag");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to dismiss flag");
       }
 
       router.push("/admin/flags?message=dismissed");
@@ -156,9 +156,9 @@ export default function FlagReviewPage({ params }: FlagPageProps) {
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { color: string; icon: typeof Clock }> =
       {
-        OPEN: { color: "bg-yellow-100 text-yellow-800", icon: Clock },
+        OPEN: { color: "bg-red-100 text-red-800", icon: AlertCircle },
         RESOLVED: { color: "bg-green-100 text-green-800", icon: CheckCircle },
-        DISMISSED: { color: "bg-red-100 text-red-800", icon: XCircle },
+        DISMISSED: { color: "bg-gray-100 text-gray-800", icon: XCircle },
       };
 
     const config = statusConfig[status] || statusConfig.OPEN;
@@ -172,6 +172,18 @@ export default function FlagReviewPage({ params }: FlagPageProps) {
         {status}
       </span>
     );
+  };
+
+  const getReasonLabel = (reason: string): string => {
+    const reasonLabels: Record<string, string> = {
+      'INCORRECT_MEANING': 'Incorrect Meaning',
+      'INCORRECT_PHONEME': 'Incorrect Phoneme',
+      'INAPPROPRIATE_CONTENT': 'Inappropriate Content',
+      'DUPLICATE_ENTRY': 'Duplicate Entry',
+      'SPAM': 'Spam',
+      'OTHER': 'Other'
+    }
+    return reasonLabels[reason] || reason.replace('_', ' ')
   };
 
   if (loading) {
@@ -249,7 +261,7 @@ export default function FlagReviewPage({ params }: FlagPageProps) {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-2xl font-bold text-gray-900">
-                {`Flag Report: "${flag.word.word}"`}
+                Flag Report: {`"${flag.word.word}"`}
               </h2>
               <p className="text-sm text-gray-600 mt-1">
                 Report ID: {flag.id.substring(0, 8)}...
@@ -266,18 +278,18 @@ export default function FlagReviewPage({ params }: FlagPageProps) {
               <Calendar className="w-4 h-4 mr-2" />
               <span>Reported: {new Date(flag.createdAt).toLocaleString()}</span>
             </div>
-            {flag.reviewedAt && (
+            {flag.resolvedAt && (
               <div className="flex items-center text-gray-600">
                 <CheckCircle className="w-4 h-4 mr-2" />
                 <span>
-                  Reviewed: {new Date(flag.reviewedAt).toLocaleString()}
+                  Reviewed: {new Date(flag.resolvedAt).toLocaleString()}
                 </span>
               </div>
             )}
-            {flag.reviewedBy && (
+            {flag.resolvedBy && (
               <div className="flex items-center text-gray-600">
                 <User className="w-4 h-4 mr-2" />
-                <span>By: {flag.reviewedBy.name}</span>
+                <span>By: {flag.resolvedBy.name}</span>
               </div>
             )}
           </div>
@@ -362,8 +374,8 @@ export default function FlagReviewPage({ params }: FlagPageProps) {
                     <Image
                       src={flag.user.avatar}
                       alt={flag.user.name}
-                      width={48} // 👈 matches w-12 (12 * 4px = 48px)
-                      height={48} // 👈 matches h-12
+                      width={48}
+                      height={48}
                       className="rounded-full"
                     />
                   ) : (
@@ -400,7 +412,7 @@ export default function FlagReviewPage({ params }: FlagPageProps) {
 
             {/* Flag Details */}
             <div className="bg-white shadow rounded-lg overflow-hidden">
-              <div className="bg-gray-50 px-6 py-4 border-b">
+              <div className="bg-red-50 px-6 py-4 border-b border-red-200">
                 <h3 className="text-lg font-medium text-gray-900">
                   Flag Details
                 </h3>
@@ -411,23 +423,26 @@ export default function FlagReviewPage({ params }: FlagPageProps) {
                     <label className="text-sm font-medium text-gray-500">
                       Reason
                     </label>
-                    <p className="text-gray-900 capitalize">
-                      {flag.reason.replace("_", " ")}
+                    {/* <p className="text-gray-900 font-medium text-red-700"> */}
+                    <p className="text-gray-900 font-medium">
+                      {getReasonLabel(flag.reason)}
                     </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">
                       Description
                     </label>
-                    <p className="text-gray-900">{flag.description}</p>
+                    <p className="text-gray-900 bg-gray-50 p-3 rounded border">
+                      {flag.description}
+                    </p>
                   </div>
-                  {flag.notes && (
+                  {flag.resolution && (
                     <div>
                       <label className="text-sm font-medium text-gray-500">
-                        Admin Notes
+                        Admin Resolution
                       </label>
                       <p className="text-gray-900 bg-blue-50 p-3 rounded border-l-4 border-blue-400">
-                        {flag.notes}
+                        {flag.resolution}
                       </p>
                     </div>
                   )}
@@ -449,7 +464,7 @@ export default function FlagReviewPage({ params }: FlagPageProps) {
                 htmlFor="reviewNotes"
                 className="block text-sm font-medium text-gray-700 mb-2"
               >
-                Review Notes (Optional)
+                Resolution Notes (Required)
               </label>
               <textarea
                 id="reviewNotes"
@@ -457,7 +472,7 @@ export default function FlagReviewPage({ params }: FlagPageProps) {
                 onChange={(e) => setReviewNotes(e.target.value)}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                placeholder="Add notes about your decision..."
+                placeholder="Explain your decision and any actions taken..."
               />
             </div>
 
@@ -465,8 +480,9 @@ export default function FlagReviewPage({ params }: FlagPageProps) {
               <button
                 onClick={handleDismiss}
                 disabled={processing}
-                className="px-6 py-2 border border-red-300 text-red-700 rounded-md hover:bg-red-50 disabled:opacity-50 transition-colors"
+                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center"
               >
+                <XCircle className="w-4 h-4 mr-2" />
                 {processing ? "Processing..." : "Dismiss Flag"}
               </button>
               <button
@@ -474,14 +490,8 @@ export default function FlagReviewPage({ params }: FlagPageProps) {
                 disabled={processing}
                 className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center transition-colors"
               >
-                {processing ? (
-                  "Processing..."
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    Resolve Flag
-                  </>
-                )}
+                <Save className="w-4 h-4 mr-2" />
+                {processing ? "Processing..." : "Resolve Flag"}
               </button>
             </div>
           </div>

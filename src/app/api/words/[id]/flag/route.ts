@@ -13,7 +13,7 @@ const flagSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -24,10 +24,11 @@ export async function POST(
 
     const body = await request.json()
     const { reason, description } = flagSchema.parse(body)
+    const resolvedParams = await params
 
     // Check if word exists
     const word = await db.word.findUnique({
-      where: { id: params.id }
+      where: { id: resolvedParams.id }
     })
 
     if (!word) {
@@ -37,7 +38,7 @@ export async function POST(
     // Check if user already flagged this word
     const existingFlag = await db.wordFlag.findFirst({
       where: {
-        wordId: params.id,
+        wordId: resolvedParams.id,
         userId: session.user.id,
         status: "OPEN"
       }
@@ -52,7 +53,7 @@ export async function POST(
     // Create flag
     const flag = await db.wordFlag.create({
       data: {
-        wordId: params.id,
+        wordId: resolvedParams.id,
         userId: session.user.id,
         reason,
         description,

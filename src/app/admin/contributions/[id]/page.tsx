@@ -1,10 +1,10 @@
-// src/app/admin/contributions/[id]/page.tsx - Fixed with proper React Hook dependencies
+// src/app/admin/contributions/[id]/page.tsx - Fixed with use() hook
 
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
-// import { useSession } from "next-auth/react"
+import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { 
   ArrowLeft, 
@@ -52,48 +52,45 @@ interface Contribution {
 }
 
 export default function ContributionDetailPage({ params }: ContributionPageProps) {
-  // const { data: session } = useSession()
+  const { data: session } = useSession()
   const router = useRouter()
+  const resolvedParams = use(params) // Unwrap the Promise
+  
   const [contribution, setContribution] = useState<Contribution | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [processing, setProcessing] = useState(false)
-  const [contributionId, setContributionId] = useState<string>("")
 
-  // Extract id from async params
   useEffect(() => {
-    const getId = async () => {
-      const resolvedParams = await params
-      setContributionId(resolvedParams.id)
+    if (!session) {
+      router.push("/auth/signin")
+      return
     }
-    getId()
-  }, [params])
 
-  // Memoized fetch function to satisfy React Hook dependencies
-  const fetchContribution = useCallback(async () => {
-    if (!contributionId) return
-    
-    try {
-      const response = await fetch(`/api/admin/contributions/${contributionId}`)
-      const data = await response.json()
+    if (!["ADMIN", "MODERATOR", "EXPERT"].includes(session.user.role)) {
+      router.push("/")
+      return
+    }
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch contribution')
+    const fetchContribution = async () => {
+      try {
+        const response = await fetch(`/api/admin/contributions/${resolvedParams.id}`)
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch contribution')
+        }
+
+        setContribution(data.contribution)
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Failed to load contribution')
+      } finally {
+        setLoading(false)
       }
-
-      setContribution(data.contribution)
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to load contribution')
-    } finally {
-      setLoading(false)
     }
-  }, [contributionId])
 
-  useEffect(() => {
-    if (contributionId) {
-      fetchContribution()
-    }
-  }, [contributionId, fetchContribution])
+    fetchContribution()
+  }, [session, router, resolvedParams.id])
 
   const handleApprove = async () => {
     if (!contribution) return
@@ -101,13 +98,17 @@ export default function ContributionDetailPage({ params }: ContributionPageProps
     setProcessing(true)
     try {
       const response = await fetch(`/api/admin/contributions/${contribution.id}`, {
-        method: 'PATCH',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'APPROVED' })
+        body: JSON.stringify({ 
+          action: 'APPROVE',
+          notes: 'Approved by admin'
+        })
       })
 
       if (!response.ok) {
-        throw new Error('Failed to approve contribution')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to approve contribution')
       }
 
       router.push('/admin/contributions?message=approved')
@@ -121,16 +122,23 @@ export default function ContributionDetailPage({ params }: ContributionPageProps
   const handleReject = async () => {
     if (!contribution) return
 
+    const reason = prompt("Please provide a reason for rejection:")
+    if (!reason) return
+
     setProcessing(true)
     try {
       const response = await fetch(`/api/admin/contributions/${contribution.id}`, {
-        method: 'PATCH',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'REJECTED' })
+        body: JSON.stringify({ 
+          action: 'REJECT',
+          notes: reason
+        })
       })
 
       if (!response.ok) {
-        throw new Error('Failed to reject contribution')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to reject contribution')
       }
 
       router.push('/admin/contributions?message=rejected')
@@ -204,6 +212,9 @@ export default function ContributionDetailPage({ params }: ContributionPageProps
                 <p className="text-sm text-gray-600">
                   Submitted by {contribution.user.name} ({contribution.user.email})
                 </p>
+                <p className="text-xs text-gray-500">
+                  {new Date(contribution.createdAt).toLocaleDateString()}
+                </p>
               </div>
               <div className="flex items-center space-x-3">
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -223,58 +234,84 @@ export default function ContributionDetailPage({ params }: ContributionPageProps
           <div className="p-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Current Data */}
-              {contribution.originalData && (
+              {(contribution.originalData || contribution.word) && (
                 <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Current Data</h3>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                    <span className="w-3 h-3 bg-gray-400 rounded-full mr-2"></span>
+                    Current Data
+                  </h3>
                   <div className="space-y-3">
                     <div>
                       <label className="text-sm font-medium text-gray-500">Word</label>
-                      <p className="text-gray-900">{contribution.originalData.word || 'N/A'}</p>
+                      <p className="text-gray-900">
+                        {contribution.originalData?.word || contribution.word?.word || 'N/A'}
+                      </p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">Phoneme</label>
-                      <p className="text-gray-900">{contribution.originalData.phoneme || 'N/A'}</p>
+                      <p className="text-gray-900">
+                        {contribution.originalData?.phoneme || contribution.word?.phoneme || 'N/A'}
+                      </p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">Meaning</label>
-                      <p className="text-gray-900">{contribution.originalData.meaning || 'N/A'}</p>
+                      <p className="text-gray-900">
+                        {contribution.originalData?.meaning || contribution.word?.meaning || 'N/A'}
+                      </p>
                     </div>
+                    {contribution.originalData?.partOfSpeech && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Part of Speech</label>
+                        <p className="text-gray-900">{contribution.originalData.partOfSpeech}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* Proposed Changes */}
-              <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Proposed Changes</h3>
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <span className="w-3 h-3 bg-blue-500 rounded-full mr-2"></span>
+                  Proposed Changes
+                </h3>
                 <div className="space-y-3">
                   <div>
                     <label className="text-sm font-medium text-gray-500">Word</label>
-                    <p className="text-gray-900">{contribution.proposedData.word || 'N/A'}</p>
+                    <p className="text-gray-900 font-medium">
+                      {contribution.proposedData.word || 'N/A'}
+                    </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Phoneme</label>
-                    <p className="text-gray-900">{contribution.proposedData.phoneme || 'N/A'}</p>
+                    <p className="text-gray-900 font-medium">
+                      {contribution.proposedData.phoneme || 'N/A'}
+                    </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Meaning</label>
-                    <p className="text-gray-900">{contribution.proposedData.meaning || 'N/A'}</p>
+                    <p className="text-gray-900 font-medium">
+                      {contribution.proposedData.meaning || 'N/A'}
+                    </p>
                   </div>
                   {contribution.proposedData.partOfSpeech && (
                     <div>
                       <label className="text-sm font-medium text-gray-500">Part of Speech</label>
-                      <p className="text-gray-900">{contribution.proposedData.partOfSpeech}</p>
+                      <p className="text-gray-900 font-medium">{contribution.proposedData.partOfSpeech}</p>
                     </div>
                   )}
                   {contribution.proposedData.exampleUsage && (
                     <div>
                       <label className="text-sm font-medium text-gray-500">Example Usage</label>
-                      <p className="text-gray-900">{contribution.proposedData.exampleUsage}</p>
+                      <p className="text-gray-900 font-medium italic">{`"${contribution.proposedData.exampleUsage}"`}</p>
                     </div>
                   )}
                   {contribution.proposedData.reason && (
                     <div>
-                      <label className="text-sm font-medium text-gray-500">Notes</label>
-                      <p className="text-gray-900">{contribution.proposedData.reason}</p>
+                      <label className="text-sm font-medium text-gray-500">Contributor Notes</label>
+                      <p className="text-gray-700 bg-white p-2 rounded border">
+                        {contribution.proposedData.reason}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -287,23 +324,18 @@ export default function ContributionDetailPage({ params }: ContributionPageProps
                 <button
                   onClick={handleReject}
                   disabled={processing}
-                  className="px-4 py-2 border border-red-300 text-red-700 rounded-md hover:bg-red-50 disabled:opacity-50"
+                  className="px-6 py-2 border border-red-300 text-red-700 rounded-md hover:bg-red-50 disabled:opacity-50 flex items-center"
                 >
+                  <XCircle className="w-4 h-4 mr-2" />
                   {processing ? 'Processing...' : 'Reject'}
                 </button>
                 <button
                   onClick={handleApprove}
                   disabled={processing}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center"
+                  className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center"
                 >
-                  {processing ? (
-                    'Processing...'
-                  ) : (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      Approve
-                    </>
-                  )}
+                  <Save className="w-4 h-4 mr-2" />
+                  {processing ? 'Processing...' : 'Approve'}
                 </button>
               </div>
             )}
