@@ -54,19 +54,20 @@ export default function ContributePage() {
   })
 
   // Auto-generate phoneme when Ga word changes
-  useEffect(() => {
-    const generatePhonemeForNewWord = async () => {
-      if (newWordData.word.trim() && !newWordData.phoneme.trim() && !isGenerating) {
-        const phoneme = await generatePhoneme(newWordData.word.trim())
-        if (phoneme) {
-          setNewWordData(prev => ({ ...prev, phoneme }))
-        }
+// Auto-generate phoneme when Ga word changes
+useEffect(() => {
+  const generatePhonemeForNewWord = async () => {
+    if (newWordData.word.trim() && !newWordData.phoneme.trim() && !isGenerating) {
+      const phoneme = await generatePhoneme(newWordData.word.trim())
+      if (phoneme) {
+        setNewWordData(prev => ({ ...prev, phoneme }))
       }
     }
+  }
 
-    const debounceTimer = setTimeout(generatePhonemeForNewWord, 500)
-    return () => clearTimeout(debounceTimer)
-  }, [newWordData.word, generatePhoneme, isGenerating])
+  const debounceTimer = setTimeout(generatePhonemeForNewWord, 500)
+  return () => clearTimeout(debounceTimer)
+}, [newWordData.word, newWordData.phoneme, generatePhoneme, isGenerating])
 
   // Search for existing words
   const searchWords = async (query: string) => {

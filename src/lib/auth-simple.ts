@@ -85,7 +85,8 @@ export const authOptions: NextAuthOptions = {
       }
       return session
     },
-    async signIn({ user, account, profile }) {
+    // async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       try {
         // Additional validation
         if (account?.provider === "google") {

@@ -46,7 +46,7 @@ interface FlagDetail {
   }
 }
 
-export default function FlagReviewPage({ params }: { params: Promise<any> }: { params: { id: string } }) {
+export default function FlagReviewPage({ params }: { params: { id: string } }) {
   const { data: session } = useSession()
   const router = useRouter()
   const [flag, setFlag] = useState<FlagDetail | null>(null)

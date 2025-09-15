@@ -59,7 +59,7 @@ interface UserDetail {
   flags: UserFlag[]
 }
 
-export default function UserManagementPage({ params }: { params: Promise<any> }: { params: { id: string } }) {
+export default function UserManagementPage({ params }: { params: { id: string } }) {
   const { data: session } = useSession()
   const router = useRouter()
   const [user, setUser] = useState<UserDetail | null>(null)

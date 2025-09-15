@@ -1,6 +1,6 @@
 import { Header } from '@/components/layout/header'
 import { Footer } from '@/components/layout/footer'
-import { BookOpen, Users, Globe, Heart, Target, Lightbulb, Award, Zap } from 'lucide-react'
+import { BookOpen, Users, Globe, Heart, Award, Zap } from 'lucide-react'
 import Link from 'next/link'
 
 export default function AboutPage() {

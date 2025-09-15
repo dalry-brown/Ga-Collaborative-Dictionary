@@ -1,30 +1,22 @@
-// First, let me verify the existing API route structure
-// Since you mentioned there's already an app/api/dictionary/route.ts
-// Let me create a simple test to see if we can connect to the database
+// Fix for src/app/api/dictionary/route.ts - Works with non-nullable schema
 
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { db } from '@/lib/db'
+import type { Prisma } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
   try {
-    // Test database connection
-    const count = await prisma.word.count()
-    console.log(`Database connected! Found ${count} words`)
-    
-    // Get search parameters
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search') || ''
+    const sortBy = searchParams.get('sortBy') || 'word'
+    const filterBy = searchParams.get('filterBy') || 'all'
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
-    const completionStatus = searchParams.get('completionStatus')
-    const sortBy = searchParams.get('sortBy') || 'alphabetical'
+    const letter = searchParams.get('letter')
 
-    const skip = (page - 1) * limit
+    // Build where clause with proper typing
+    const where: Prisma.WordWhereInput = {}
 
-    // Build where clause
-    let where: any = {}
-
-    // Search functionality
     if (search) {
       where.OR = [
         { word: { contains: search, mode: 'insensitive' } },
@@ -33,57 +25,69 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    // Filter by completion status
-    if (completionStatus && completionStatus !== 'ALL') {
-      where.completionStatus = completionStatus
+    if (letter) {
+      where.word = { startsWith: letter, mode: 'insensitive' }
     }
 
-    // Build orderBy
-    let orderBy: any = { word: 'asc' }
-    
-    if (sortBy === 'newest') {
-      orderBy = { createdAt: 'desc' }
-    } else if (sortBy === 'oldest') {
-      orderBy = { createdAt: 'asc' }
+    // Filter by completeness (based on having meaningful content)
+    if (filterBy === 'complete') {
+      where.AND = [
+        { phoneme: { not: '' } },
+        { meaning: { not: '' } }
+      ]
+    } else if (filterBy === 'incomplete') {
+      where.OR = [
+        { phoneme: '' },
+        { meaning: '' }
+      ]
     }
 
-    // Get words and total count
+    // Build orderBy clause with proper typing
+    const orderBy: Prisma.WordOrderByWithRelationInput = 
+      sortBy === 'word' ? { word: 'asc' } :
+      sortBy === 'meaning' ? { meaning: 'asc' } :
+      sortBy === 'newest' ? { createdAt: 'desc' } :
+      { word: 'asc' }
+
     const [words, total] = await Promise.all([
-      prisma.word.findMany({
+      db.word.findMany({
         where,
         orderBy,
-        skip,
+        skip: (page - 1) * limit,
         take: limit,
         select: {
           id: true,
           word: true,
           phoneme: true,
           meaning: true,
-          completionStatus: true,
-          createdAt: true,
-          updatedAt: true
+          partOfSpeech: true,
+          exampleUsage: true,
+          createdAt: true
         }
       }),
-      prisma.word.count({ where })
+      db.word.count({ where })
     ])
 
+    // Add isComplete field dynamically (check for non-empty strings)
+    const wordsWithComplete = words.map(word => ({
+      ...word,
+      isComplete: !!(word.phoneme && word.phoneme.trim() && word.meaning && word.meaning.trim())
+    }))
+
     return NextResponse.json({
-      success: true,
-      words,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit)
+      words: wordsWithComplete,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
     })
 
   } catch (error) {
-    console.error('Database error:', error)
+    console.error('Dictionary API error:', error)
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to fetch words',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
+      { error: 'Failed to fetch words' },
       { status: 500 }
     )
   }

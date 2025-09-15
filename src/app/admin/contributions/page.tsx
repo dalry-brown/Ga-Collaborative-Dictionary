@@ -1,8 +1,8 @@
-// app/admin/contributions/page.tsx - Admin Contributions Review
+// app/admin/contributions/page.tsx - Clean Admin Contributions Review
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -14,8 +14,7 @@ import {
   XCircle,
   Clock,
   User,
-  Calendar,
-  Filter
+  Calendar
 } from "lucide-react"
 
 interface Contribution {
@@ -68,21 +67,7 @@ export default function AdminContributionsPage() {
   const [typeFilter, setTypeFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
 
-  useEffect(() => {
-    if (!session) {
-      router.push("/auth/signin")
-      return
-    }
-
-    if (!["ADMIN", "MODERATOR", "EXPERT"].includes(session.user.role)) {
-      router.push("/")
-      return
-    }
-
-    fetchContributions()
-  }, [session, router, currentPage, statusFilter, typeFilter])
-
-  const fetchContributions = async () => {
+  const fetchContributions = useCallback(async () => {
     try {
       setLoading(true)
       
@@ -116,7 +101,21 @@ export default function AdminContributionsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentPage, statusFilter, typeFilter, searchQuery])
+
+  useEffect(() => {
+    if (!session) {
+      router.push("/auth/signin")
+      return
+    }
+
+    if (!["ADMIN", "MODERATOR", "EXPERT"].includes(session.user.role)) {
+      router.push("/")
+      return
+    }
+
+    fetchContributions()
+  }, [session, router, fetchContributions])
 
   const handleSearch = () => {
     setCurrentPage(1)
