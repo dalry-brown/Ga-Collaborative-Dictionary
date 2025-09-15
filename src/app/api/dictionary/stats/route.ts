@@ -3,36 +3,46 @@ import { db } from '@/lib/db'
 
 export async function GET() {
   try {
-    // Get cached stats first
-    let stats = await db.dictionaryStats.findUnique({
-      where: { id: 'singleton' }
-    })
-
-    // If no cached stats or they're old, recalculate
-    if (!stats || isStatsStale(stats.updatedAt)) {
-      stats = await recalculateStats()
-    }
-
-    // Get recent activity
-    const recentWords = await db.word.findMany({
-      where: {
-        isPublished: true,
-        createdAt: {
-          gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
+    // Calculate stats directly since there's no DictionaryStats model
+    const [
+      totalWords,
+      completeWords,
+      incompleteWords,
+      pendingContributions,
+      activeContributors,
+      recentWords
+    ] = await Promise.all([
+      db.word.count(),
+      db.word.count({ where: { completionStatus: 'COMPLETE' } }),
+      db.word.count({ where: { completionStatus: 'INCOMPLETE' } }),
+      db.wordContribution.count({ where: { status: 'PENDING' } }),
+      db.user.count({
+        where: {
+          contributionCount: { gt: 0 },
+          lastActive: {
+            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Active in last 30 days
+          }
         }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: {
-        id: true,
-        word: true,
-        meaning: true,
-        createdAt: true
-      }
-    })
+      }),
+      db.word.findMany({
+        where: {
+          createdAt: {
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          word: true,
+          meaning: true,
+          createdAt: true
+        }
+      })
+    ])
 
     // Get pending contributions
-    const pendingContributions = await db.contribution.findMany({
+    const pendingContributionsList = await db.wordContribution.findMany({
       where: { status: 'PENDING' },
       orderBy: { createdAt: 'desc' },
       take: 10,
@@ -47,11 +57,11 @@ export async function GET() {
       success: true,
       data: {
         stats: {
-          totalWords: stats.totalWords,
-          verifiedWords: stats.verifiedWords,
-          incompleteEntries: stats.incompleteWords,
-          pendingReview: stats.pendingContributions,
-          activeContributors: stats.activeContributors,
+          totalWords,
+          verifiedWords: completeWords, // Using complete words as "verified"
+          incompleteEntries: incompleteWords,
+          pendingReview: pendingContributions,
+          activeContributors,
           recentAdditions: recentWords.length
         },
         recentWords: recentWords.map(word => ({
@@ -59,10 +69,10 @@ export async function GET() {
           meaning: word.meaning,
           timeAgo: getTimeAgo(word.createdAt)
         })),
-        pendingContributions: pendingContributions.map(contrib => ({
-          word: contrib.proposedData ? JSON.parse(contrib.proposedData).word : 'Unknown',
+        pendingContributions: pendingContributionsList.map(contrib => ({
+          word: getWordFromProposedData(contrib.proposedData),
           type: getContributionTypeLabel(contrib.type),
-          contributor: contrib.user.name,
+          contributor: contrib.user.name || 'Unknown',
           timeAgo: getTimeAgo(contrib.createdAt)
         }))
       }
@@ -77,55 +87,18 @@ export async function GET() {
   }
 }
 
-async function recalculateStats() {
-  console.log('Recalculating dictionary statistics...')
-
-  const [
-    totalWords,
-    verifiedWords,
-    incompleteWords,
-    pendingContributions,
-    activeContributors
-  ] = await Promise.all([
-    db.word.count({ where: { isPublished: true } }),
-    db.word.count({ where: { isPublished: true, isVerified: true } }),
-    db.word.count({ where: { isPublished: true, completionStatus: 'INCOMPLETE' } }),
-    db.contribution.count({ where: { status: 'PENDING' } }),
-    db.user.count({
-      where: {
-        contributionCount: { gt: 0 },
-        lastActive: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Active in last 30 days
-        }
-      }
-    })
-  ])
-
-  const stats = await db.dictionaryStats.upsert({
-    where: { id: 'singleton' },
-    update: {
-      totalWords,
-      verifiedWords,
-      incompleteWords,
-      pendingContributions,
-      activeContributors
-    },
-    create: {
-      id: 'singleton',
-      totalWords,
-      verifiedWords,
-      incompleteWords,
-      pendingContributions,
-      activeContributors
+function getWordFromProposedData(proposedData: unknown): string {
+  try {
+    if (typeof proposedData === 'string') {
+      const parsed = JSON.parse(proposedData)
+      return (parsed as { word?: string }).word || 'Unknown'
+    } else if (typeof proposedData === 'object' && proposedData !== null) {
+      return (proposedData as { word?: string }).word || 'Unknown'
     }
-  })
-
-  return stats
-}
-
-function isStatsStale(updatedAt: Date): boolean {
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
-  return updatedAt < oneHourAgo
+    return 'Unknown'
+  } catch {
+    return 'Unknown'
+  }
 }
 
 function getTimeAgo(date: Date): string {

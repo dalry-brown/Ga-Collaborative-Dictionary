@@ -8,7 +8,7 @@ const dictionaryDataCache: GaWord[] = [];
  */
 export function processCsvData(csvContent: string): GaWord[] {
   const lines = csvContent.trim().split('\n');
-  const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+  // Remove unused headers variable
   
   const words: GaWord[] = [];
   
@@ -25,10 +25,9 @@ export function processCsvData(csvContent: string): GaWord[] {
         word: values[0]?.trim() || '',
         phoneme: values[1]?.trim() || '',
         meaning: values[2]?.trim() || '',
-        dateAdded: new Date(),
-        isVerified: true, // Assume CSV data is verified
         completionStatus: getCompletionStatus(values[0], values[1], values[2]),
-        missingFields: getMissingFields(values[0], values[1], values[2])
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
       
       words.push(word);
@@ -67,34 +66,34 @@ function parseCsvLine(line: string): string[] {
  * Determine completion status based on current CSV fields (word, phoneme, meaning)
  * In the future, this will include partOfSpeech and usageExample
  */
-function getCompletionStatus(word: string, phoneme: string, meaning: string): 'complete' | 'incomplete' {
+function getCompletionStatus(word: string, phoneme: string, meaning: string): 'COMPLETE' | 'INCOMPLETE' {
   const hasWord = word && word.trim().length > 0;
   const hasPhoneme = phoneme && phoneme.trim().length > 0;
   const hasMeaning = meaning && meaning.trim().length > 0;
   
   // Currently complete = all three basic fields present
   // Future: will also check partOfSpeech and usageExample
-  return (hasWord && hasPhoneme && hasMeaning) ? 'complete' : 'incomplete';
+  return (hasWord && hasPhoneme && hasMeaning) ? 'COMPLETE' : 'INCOMPLETE';
 }
 
 /**
  * Get list of missing fields for incomplete entries
  * Currently checking: word, phoneme, meaning
- * Future: will also check partOfSpeech, usageExample
+ * Future: will also check partOfSpeech, exampleUsage
  */
-function getMissingFields(word: string, phoneme: string, meaning: string): string[] {
-  const missing: string[] = [];
+// function getMissingFields(word: string, phoneme: string, meaning: string): string[] {
+//   const missing: string[] = [];
   
-  if (!word || word.trim().length === 0) missing.push('word');
-  if (!phoneme || phoneme.trim().length === 0) missing.push('phoneme');
-  if (!meaning || meaning.trim().length === 0) missing.push('meaning');
+//   if (!word || word.trim().length === 0) missing.push('word');
+//   if (!phoneme || phoneme.trim().length === 0) missing.push('phoneme');
+//   if (!meaning || meaning.trim().length === 0) missing.push('meaning');
   
-  // Future additions:
-  // if (!partOfSpeech) missing.push('partOfSpeech');
-  // if (!usageExample) missing.push('usageExample');
+//   // Future additions:
+//   // if (!partOfSpeech) missing.push('partOfSpeech');
+//   // if (!exampleUsage) missing.push('exampleUsage');
   
-  return missing;
-}
+//   return missing;
+// }
 
 /**
  * Load dictionary data (in a real app, this would be from a database)
@@ -119,11 +118,10 @@ export async function loadDictionaryData(): Promise<GaWord[]> {
  */
 export function getDictionaryStats(words: GaWord[]) {
   const totalWords = words.length;
-  const verifiedWords = words.filter(w => w.isVerified).length;
-  const incompleteEntries = words.filter(w => w.completionStatus === 'incomplete').length;
+  const verifiedWords = words.filter(w => w.completionStatus === 'COMPLETE').length;
+  const incompleteEntries = words.filter(w => w.completionStatus === 'INCOMPLETE').length;
   const recentAdditions = words.filter(w => {
-    const daysSinceAdded = w.dateAdded ? 
-      Math.floor((Date.now() - w.dateAdded.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+    const daysSinceAdded = Math.floor((Date.now() - w.createdAt.getTime()) / (1000 * 60 * 60 * 24));
     return daysSinceAdded <= 7;
   }).length;
   
@@ -165,17 +163,17 @@ export function searchWords(
   if (filters.filterBy) {
     switch (filters.filterBy) {
       case 'complete':
-        results = results.filter(w => w.completionStatus === 'complete');
+        results = results.filter(w => w.completionStatus === 'COMPLETE');
         break;
       case 'incomplete':
-        results = results.filter(w => w.completionStatus === 'incomplete');
+        results = results.filter(w => w.completionStatus === 'INCOMPLETE');
         break;
       case 'missing-phoneme':
-        results = results.filter(w => w.missingFields?.includes('phoneme'));
+        results = results.filter(w => !w.phoneme || w.phoneme.trim() === '');
         break;
       case 'missing-usage':
-        // Future: when usageExample is added to CSV
-        results = results.filter(w => !w.usageExample);
+        // Future: when exampleUsage is added to schema
+        results = results.filter(w => !w.exampleUsage);
         break;
     }
   }
@@ -193,15 +191,15 @@ export function searchWords(
       results.sort((a, b) => a.word.localeCompare(b.word));
       break;
     case 'newest':
-      results.sort((a, b) => (b.dateAdded?.getTime() || 0) - (a.dateAdded?.getTime() || 0));
+      results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       break;
     case 'oldest':
-      results.sort((a, b) => (a.dateAdded?.getTime() || 0) - (b.dateAdded?.getTime() || 0));
+      results.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       break;
     case 'most-complete':
       results.sort((a, b) => {
-        const aScore = a.completionStatus === 'complete' ? 1 : 0;
-        const bScore = b.completionStatus === 'complete' ? 1 : 0;
+        const aScore = a.completionStatus === 'COMPLETE' ? 1 : 0;
+        const bScore = b.completionStatus === 'COMPLETE' ? 1 : 0;
         return bScore - aScore;
       });
       break;

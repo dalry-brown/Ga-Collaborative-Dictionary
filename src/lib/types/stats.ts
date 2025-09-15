@@ -29,3 +29,4 @@ export interface DictionaryStats {
   recentlyAdded: number
   completionPercentage: number
 }
+

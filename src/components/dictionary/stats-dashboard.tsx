@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { DictionaryStats } from '@/lib/types/dictionary';
 import { 
   BookOpen, 
   CheckCircle, 
@@ -11,7 +10,16 @@ import {
   TrendingUp,
   AlertCircle
 } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
+
+// Define the type to match your actual API response
+interface DictionaryStats {
+  totalWords: number;
+  verifiedWords: number;
+  incompleteEntries: number;
+  pendingReview: number;
+  activeContributors: number;
+  recentAdditions: number;
+}
 
 interface StatsDashboardProps {
   stats: DictionaryStats;
@@ -25,6 +33,10 @@ interface StatCardProps {
   description?: string;
   trend?: 'up' | 'down' | 'neutral';
   color?: 'blue' | 'green' | 'yellow' | 'purple' | 'red';
+}
+
+function cn(...classes: (string | undefined | null | boolean)[]): string {
+  return classes.filter(Boolean).join(' ');
 }
 
 function StatCard({ 
@@ -139,7 +151,7 @@ export function CompactStats({ stats }: { stats: DictionaryStats }) {
   return (
     <div className="grid grid-cols-2 gap-3">
       <div className="text-center">
-        <div className="text-2xl font-bold text-primary-600">
+        <div className="text-2xl font-bold text-blue-600">
           {stats.totalWords.toLocaleString()}
         </div>
         <div className="text-xs text-gray-600">Total Words</div>

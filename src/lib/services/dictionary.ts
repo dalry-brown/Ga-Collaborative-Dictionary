@@ -1,163 +1,133 @@
-import { GaWord, SearchFilters, DictionaryStats } from '@/lib/types/dictionary'
+// src/lib/services/dictionary.ts - Fixed Dictionary Service
 
-export interface SearchResponse {
-  words: GaWord[]
-  pagination: {
-    currentPage: number
-    totalPages: number
-    totalCount: number
-    hasMore: boolean
-    limit: number
-  }
-  filters: SearchFilters
-}
+import { SearchFilters, SearchResponse, StatsResponse, GaWord } from '@/lib/types/dictionary'
 
-export interface StatsResponse {
-  stats: DictionaryStats
-  recentWords: Array<{
-    word: string
-    meaning: string
-    timeAgo: string
-  }>
-  pendingContributions: Array<{
-    word: string
-    type: string
-    contributor: string
-    timeAgo: string
-  }>
-}
+export class DictionaryService {
+  private baseUrl = '/api'
 
-class DictionaryService {
-  private baseUrl = '/api/dictionary'
-
-  async searchWords(filters: SearchFilters, page = 1, limit = 20): Promise<SearchResponse> {
-    const params = new URLSearchParams({
-      page: page.toString(),
-      limit: limit.toString(),
-      sortBy: filters.sortBy,
-      filterBy: filters.filterBy,
-    })
-
-    if (filters.query) params.append('query', filters.query)
-    if (filters.startingWith) params.append('startingWith', filters.startingWith)
-    if (filters.showOnlyVerified !== undefined) {
-      params.append('showOnlyVerified', filters.showOnlyVerified.toString())
+  async searchWords(filters: SearchFilters, page = 1): Promise<SearchResponse> {
+    const params = new URLSearchParams()
+    
+    // Add parameters conditionally to avoid undefined values
+    params.append('page', page.toString())
+    params.append('limit', '20')
+    
+    if (filters.sortBy) {
+      params.append('sortBy', filters.sortBy)
+    }
+    
+    if (filters.filterBy) {
+      params.append('filterBy', filters.filterBy)
+    }
+    
+    if (filters.query) {
+      params.append('search', filters.query)
+    }
+    
+    if (filters.startingWith) {
+      params.append('startsWith', filters.startingWith)
     }
 
-    const response = await fetch(`${this.baseUrl}?${params}`)
+    const response = await fetch(`${this.baseUrl}/dictionary?${params.toString()}`)
     
     if (!response.ok) {
       throw new Error(`Search failed: ${response.statusText}`)
     }
-
-    const result = await response.json()
     
-    if (!result.success) {
-      throw new Error(result.error || 'Search failed')
-    }
-
-    return result.data
+    return response.json()
   }
 
   async getStats(): Promise<StatsResponse> {
-    const response = await fetch(`${this.baseUrl}/stats`)
+    const response = await fetch(`${this.baseUrl}/dictionary/stats`)
     
     if (!response.ok) {
-      throw new Error(`Stats fetch failed: ${response.statusText}`)
+      throw new Error(`Failed to fetch stats: ${response.statusText}`)
     }
-
-    const result = await response.json()
     
-    if (!result.success) {
-      throw new Error(result.error || 'Stats fetch failed')
-    }
-
-    return result.data
+    return response.json()
   }
 
   async createWord(wordData: Partial<GaWord>): Promise<GaWord> {
-    const response = await fetch(this.baseUrl, {
+    const response = await fetch(`${this.baseUrl}/words`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(wordData),
+      body: JSON.stringify(wordData)
     })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to create word')
-    }
-
-    const result = await response.json()
     
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to create word')
+    if (!response.ok) {
+      throw new Error(`Failed to create word: ${response.statusText}`)
     }
-
-    return result.data
+    
+    return response.json()
   }
 
   async updateWord(id: string, wordData: Partial<GaWord>): Promise<GaWord> {
-    const response = await fetch(`${this.baseUrl}/${id}`, {
-      method: 'PUT',
+    const response = await fetch(`${this.baseUrl}/words/${id}`, {
+      method: 'PATCH',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(wordData),
+      body: JSON.stringify(wordData)
     })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to update word')
-    }
-
-    const result = await response.json()
     
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to update word')
+    if (!response.ok) {
+      throw new Error(`Failed to update word: ${response.statusText}`)
     }
-
-    return result.data
+    
+    return response.json()
   }
 
   async deleteWord(id: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/${id}`, {
-      method: 'DELETE',
+    const response = await fetch(`${this.baseUrl}/words/${id}`, {
+      method: 'DELETE'
     })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to delete word')
-    }
-
-    const result = await response.json()
     
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to delete word')
+    if (!response.ok) {
+      throw new Error(`Failed to delete word: ${response.statusText}`)
     }
   }
 
   async flagWord(id: string, reason: string, details?: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/${id}/flag`, {
+    const response = await fetch(`${this.baseUrl}/words/${id}/flag`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ reason, details }),
+      body: JSON.stringify({
+        reason,
+        description: details || ''
+      })
     })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to flag word')
-    }
-
-    const result = await response.json()
     
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to flag word')
+    if (!response.ok) {
+      throw new Error(`Failed to flag word: ${response.statusText}`)
     }
   }
 }
 
+// Export singleton instance
 export const dictionaryService = new DictionaryService()
+
+// Export individual functions for compatibility
+export const searchWords = (filters: SearchFilters, page?: number) => 
+  dictionaryService.searchWords(filters, page)
+
+export const getStats = () => 
+  dictionaryService.getStats()
+
+export const createWord = (wordData: Partial<GaWord>) => 
+  dictionaryService.createWord(wordData)
+
+export const updateWord = (id: string, wordData: Partial<GaWord>) => 
+  dictionaryService.updateWord(id, wordData)
+
+export const deleteWord = (id: string) => 
+  dictionaryService.deleteWord(id)
+
+export const flagWord = (id: string, reason: string, details?: string) => 
+  dictionaryService.flagWord(id, reason, details)
+
+// Re-export types for convenience
+export type { SearchFilters, SearchResponse, StatsResponse, GaWord }

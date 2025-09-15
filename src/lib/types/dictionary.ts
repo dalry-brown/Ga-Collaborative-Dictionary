@@ -28,6 +28,12 @@ export interface SearchResponse {
   totalPages: number
   hasNextPage: boolean
   hasPreviousPage: boolean
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    pages: number
+  }
 }
 
 // Contribution types
@@ -37,8 +43,6 @@ export interface WordContribution {
   userId: string
   type: ContributionType
   status: ContributionStatus
-  // originalData?: any
-  // proposedData: any
   originalData?: unknown
   proposedData: unknown
   reviewNotes?: string
@@ -61,7 +65,7 @@ export type ContributionStatus =
   | 'REJECTED' 
   | 'NEEDS_REVIEW'
 
-// User types - fixed to include UserRole
+// User types
 export interface User {
   id: string
   email: string
@@ -104,17 +108,41 @@ export interface ApiResponse<T> {
   message?: string
 }
 
-// Statistics types
+// Updated statistics types with all required properties
 export interface DictionaryStats {
   totalWords: number
-  completeWords: number
+  verifiedWords: number        // For complete words count
+  completeWords: number       // Alias for verifiedWords
   incompleteWords: number
+  incompleteEntries: number   // Alias for incompleteWords
   pendingContributions: number
+  pendingReview: number       // Alias for pendingContributions
   totalContributors: number
+  activeContributors: number  // Alias for totalContributors
+  recentAdditions: number     // For recently added words
   recentActivity: {
     newWords: number
     updatedWords: number
     flaggedWords: number
+  }
+}
+
+// Stats API response interface
+export interface StatsResponse {
+  success: boolean
+  data: {
+    stats: DictionaryStats
+    recentWords: Array<{
+      word: string
+      meaning: string
+      timeAgo: string
+    }>
+    pendingContributions: Array<{
+      word: string
+      type: string
+      contributor: string
+      timeAgo: string
+    }>
   }
 }
 
@@ -124,3 +152,26 @@ export interface CsvWord {
   phoneme: string
   meaning: string
 }
+
+// Compatibility aliases for existing hooks (with meaningful extensions)
+export interface SearchFilters extends SearchParams {
+  // Additional search-specific properties can be added here in the future
+  includePartialMatches?: boolean
+}
+
+// Legacy Word interface for backward compatibility (with meaningful extensions)
+export interface Word extends GaWord {
+  // Additional legacy properties can be added here if needed
+  displayName?: string
+}
+
+// Additional pagination interface
+export interface Pagination {
+  page: number
+  limit: number
+  total: number
+  pages: number
+}
+
+// Completion status type alias
+export type CompletionStatus = 'COMPLETE' | 'INCOMPLETE'
