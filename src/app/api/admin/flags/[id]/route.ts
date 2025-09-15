@@ -5,7 +5,6 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { z } from "zod"
-import { FlagStatus } from "@prisma/client"
 
 const resolveFlagSchema = z.object({
   action: z.enum(["RESOLVE", "DISMISS"]),
@@ -14,7 +13,7 @@ const resolveFlagSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -27,8 +26,10 @@ export async function GET(
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
     }
 
+    const resolvedParams = await params
+
     const flag = await db.wordFlag.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       include: {
         word: true,
         user: {
@@ -63,7 +64,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -78,9 +79,10 @@ export async function POST(
 
     const body = await request.json()
     const { action, resolution } = resolveFlagSchema.parse(body)
+    const resolvedParams = await params
 
     const flag = await db.wordFlag.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       include: { word: true }
     })
 
@@ -95,7 +97,7 @@ export async function POST(
     // Update flag status
     const updatedFlag = await db.$transaction(async (tx) => {
       const updated = await tx.wordFlag.update({
-        where: { id: params.id },
+        where: { id: resolvedParams.id },
         data: {
           status: action === "RESOLVE" ? "RESOLVED" : "DISMISSED",
           resolvedById: session.user.id,

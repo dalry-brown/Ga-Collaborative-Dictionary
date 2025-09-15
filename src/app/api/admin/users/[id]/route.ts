@@ -16,7 +16,7 @@ const updateUserSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -29,8 +29,10 @@ export async function GET(
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
     }
 
+    const resolvedParams = await params
+
     const user = await db.user.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       include: {
         contributions: {
           select: {
@@ -70,7 +72,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -85,10 +87,11 @@ export async function PATCH(
 
     const body = await request.json()
     const validatedData = updateUserSchema.parse(body)
+    const resolvedParams = await params
 
     // Check if user exists
     const existingUser = await db.user.findUnique({
-      where: { id: params.id }
+      where: { id: resolvedParams.id }
     })
 
     if (!existingUser) {
@@ -101,12 +104,12 @@ export async function PATCH(
     }
 
     // Prevent users from modifying themselves unless they're admin
-    if (params.id === session.user.id && session.user.role !== "ADMIN") {
+    if (resolvedParams.id === session.user.id && session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Cannot modify your own account" }, { status: 403 })
     }
 
     const updatedUser = await db.user.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: {
         ...(validatedData.role && { role: validatedData.role as Role }),
         ...(validatedData.bio !== undefined && { bio: validatedData.bio }),
@@ -147,7 +150,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -160,13 +163,15 @@ export async function DELETE(
       return NextResponse.json({ error: "Admin access required" }, { status: 403 })
     }
 
+    const resolvedParams = await params
+
     // Prevent self-deletion
-    if (params.id === session.user.id) {
+    if (resolvedParams.id === session.user.id) {
       return NextResponse.json({ error: "Cannot delete your own account" }, { status: 403 })
     }
 
     const user = await db.user.findUnique({
-      where: { id: params.id }
+      where: { id: resolvedParams.id }
     })
 
     if (!user) {
@@ -177,17 +182,17 @@ export async function DELETE(
     await db.$transaction(async (tx) => {
       // Delete user's contributions
       await tx.wordContribution.deleteMany({
-        where: { userId: params.id }
+        where: { userId: resolvedParams.id }
       })
 
       // Delete user's flags
       await tx.wordFlag.deleteMany({
-        where: { userId: params.id }
+        where: { userId: resolvedParams.id }
       })
 
       // Delete the user
       await tx.user.delete({
-        where: { id: params.id }
+        where: { id: resolvedParams.id }
       })
     })
 
