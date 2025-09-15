@@ -5,7 +5,6 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { z } from "zod"
-import { ContributionStatus } from "@prisma/client"
 
 const reviewSchema = z.object({
   action: z.enum(["APPROVE", "REJECT"]),
@@ -23,7 +22,7 @@ interface ProposedData {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -36,8 +35,10 @@ export async function GET(
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
     }
 
+    const resolvedParams = await params
+    
     const contribution = await db.wordContribution.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       include: {
         user: {
           select: {
@@ -72,7 +73,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -87,10 +88,11 @@ export async function POST(
 
     const body = await request.json()
     const { action, notes } = reviewSchema.parse(body)
+    const resolvedParams = await params
 
     // Get the contribution
     const contribution = await db.wordContribution.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       include: {
         word: true,
         user: true
@@ -109,7 +111,7 @@ export async function POST(
     const result = await db.$transaction(async (tx) => {
       // Update contribution status
       const updatedContribution = await tx.wordContribution.update({
-        where: { id: params.id },
+        where: { id: resolvedParams.id },
         data: {
           status: action === "APPROVE" ? "APPROVED" : "REJECTED",
           reviewedById: session.user.id,
