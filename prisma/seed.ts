@@ -59,7 +59,7 @@ async function main() {
   for (let i = 0; i < records.length; i += batchSize) {
     const batch = records.slice(i, i + batchSize)
     
-    const wordsData = batch.map((record, index) => {
+    const wordsData = batch.map((record) => {
       const word = record.word?.trim() || ''
       const phoneme = record.phoneme?.trim() || ''
       const meaning = record.meaning?.trim() || ''
@@ -72,8 +72,6 @@ async function main() {
         word,
         phoneme,
         meaning,
-        isVerified: true, // CSV data is considered verified
-        isPublished: true,
         completionStatus: completionStatus as 'COMPLETE' | 'INCOMPLETE',
         createdAt: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000), // Random date within last 90 days
       }
@@ -91,76 +89,37 @@ async function main() {
 
   // Update dictionary statistics
   const totalWords = await prisma.word.count()
-  const verifiedWords = await prisma.word.count({ where: { isVerified: true } })
+  const completeWords = await prisma.word.count({ where: { completionStatus: 'COMPLETE' } })
   const incompleteWords = await prisma.word.count({ where: { completionStatus: 'INCOMPLETE' } })
 
-  await prisma.dictionaryStats.upsert({
-    where: { id: 'singleton' },
-    update: {
-      totalWords,
-      verifiedWords,
-      incompleteWords,
-      pendingContributions: 0,
-      activeContributors: 1
-    },
-    create: {
-      id: 'singleton',
-      totalWords,
-      verifiedWords,
-      incompleteWords,
-      pendingContributions: 0,
-      activeContributors: 1
-    }
-  })
-
-  console.log('📊 Updated dictionary statistics:')
+  console.log('📊 Dictionary statistics:')
   console.log(`   Total words: ${totalWords}`)
-  console.log(`   Verified words: ${verifiedWords}`)
+  console.log(`   Complete words: ${completeWords}`)
   console.log(`   Incomplete words: ${incompleteWords}`)
 
   // Create some sample contributions for testing
   const sampleWords = await prisma.word.findMany({ take: 5 })
   
   for (const word of sampleWords.slice(0, 3)) {
-    await prisma.contribution.create({
+    await prisma.wordContribution.create({
       data: {
         type: 'UPDATE_WORD',
         status: 'PENDING',
         wordId: word.id,
         userId: adminUser.id,
-        originalData: {
-          word: word.word,
-          phoneme: word.phoneme,
-          meaning: word.meaning
-        },
         proposedData: {
           word: word.word,
           phoneme: word.phoneme,
           meaning: word.meaning,
-          usageExample: `Sample usage for ${word.word}`
-        },
-        reason: 'Adding usage example'
+          exampleUsage: `Sample usage for ${word.word}`
+        }
+        // Note: Your schema doesn't have a 'description' field
+        // Only originalData and proposedData JSON fields exist
       }
     })
   }
 
   console.log('📝 Created sample contributions')
-
-  // Log activity
-  await prisma.activityLog.create({
-    data: {
-      action: 'DATABASE_SEEDED',
-      entityType: 'SYSTEM',
-      entityId: 'seed',
-      userId: adminUser.id,
-      details: {
-        totalWords,
-        verifiedWords,
-        incompleteWords,
-        timestamp: new Date().toISOString()
-      }
-    }
-  })
 
   console.log('✅ Database seeded successfully!')
 }
