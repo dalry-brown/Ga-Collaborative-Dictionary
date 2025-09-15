@@ -75,48 +75,48 @@ export default function AdminFlagsPage() {
       return
     }
 
-    fetchFlags()
-  }, [session, router, currentPage, statusFilter, reasonFilter])
+    const fetchFlags = async () => {
+      try {
+        setLoading(true)
+        
+        const params = new URLSearchParams({
+          page: currentPage.toString(),
+          limit: "20"
+        })
 
-  const fetchFlags = async () => {
-    try {
-      setLoading(true)
-      
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: "20"
-      })
+        if (statusFilter !== "all") {
+          params.append("status", statusFilter)
+        }
+        if (reasonFilter !== "all") {
+          params.append("reason", reasonFilter)
+        }
+        if (searchQuery.trim()) {
+          params.append("search", searchQuery.trim())
+        }
 
-      if (statusFilter !== "all") {
-        params.append("status", statusFilter)
-      }
-      if (reasonFilter !== "all") {
-        params.append("reason", reasonFilter)
-      }
-      if (searchQuery.trim()) {
-        params.append("search", searchQuery.trim())
-      }
+        const response = await fetch(`/api/admin/flags?${params}`)
+        
+        if (!response.ok) {
+          throw new Error("Failed to fetch flags")
+        }
 
-      const response = await fetch(`/api/admin/flags?${params}`)
-      
-      if (!response.ok) {
-        throw new Error("Failed to fetch flags")
+        const data: FlagsResponse = await response.json()
+        setFlags(data.flags)
+        setTotalPages(data.pagination.pages)
+      } catch (error) {
+        console.error("Error fetching flags:", error)
+        setError("Failed to load flags")
+      } finally {
+        setLoading(false)
       }
-
-      const data: FlagsResponse = await response.json()
-      setFlags(data.flags)
-      setTotalPages(data.pagination.pages)
-    } catch (error) {
-      console.error("Error fetching flags:", error)
-      setError("Failed to load flags")
-    } finally {
-      setLoading(false)
     }
-  }
+
+    fetchFlags()
+  }, [session, router, currentPage, statusFilter, reasonFilter, searchQuery])
 
   const handleSearch = () => {
     setCurrentPage(1)
-    fetchFlags()
+    // Trigger re-fetch by updating searchQuery dependency
   }
 
   const getReasonLabel = (reason: string): string => {

@@ -2,7 +2,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
@@ -10,12 +10,10 @@ import Image from "next/image"
 import { 
   ArrowLeft, 
   User, 
-  Mail, 
   MapPin, 
   Calendar, 
   Star,
   FileText,
-  AlertTriangle,
   Shield,
   Save,
   Trash2,
@@ -59,9 +57,10 @@ interface UserDetail {
   flags: UserFlag[]
 }
 
-export default function UserManagementPage({ params }: { params: Promise<any> }: { params: { id: string } }) {
+export default function UserManagementPage({ params }: { params: Promise<{ id: string }> }) {
   const { data: session } = useSession()
   const router = useRouter()
+  const resolvedParams = use(params) // Unwrap the Promise
   const [user, setUser] = useState<UserDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -86,35 +85,35 @@ export default function UserManagementPage({ params }: { params: Promise<any> }:
       return
     }
 
-    fetchUser()
-  }, [session, router, params.id])
+    const fetchUser = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch(`/api/admin/users/${resolvedParams.id}`)
+        
+        if (!response.ok) {
+          throw new Error("Failed to fetch user")
+        }
 
-  const fetchUser = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch(`/api/admin/users/${params.id}`)
-      
-      if (!response.ok) {
-        throw new Error("Failed to fetch user")
+        const data = await response.json()
+        const userData = data.user
+        setUser(userData)
+        
+        // Initialize form state
+        setSelectedRole(userData.role)
+        setBio(userData.bio || "")
+        setExpertise(userData.expertise || "")
+        setLocation(userData.location || "")
+        
+      } catch (error) {
+        console.error("Error fetching user:", error)
+        setError("Failed to load user")
+      } finally {
+        setLoading(false)
       }
-
-      const data = await response.json()
-      const userData = data.user
-      setUser(userData)
-      
-      // Initialize form state
-      setSelectedRole(userData.role)
-      setBio(userData.bio || "")
-      setExpertise(userData.expertise || "")
-      setLocation(userData.location || "")
-      
-    } catch (error) {
-      console.error("Error fetching user:", error)
-      setError("Failed to load user")
-    } finally {
-      setLoading(false)
     }
-  }
+
+    fetchUser()
+  }, [session, router, resolvedParams.id])
 
   const handleUpdateUser = async () => {
     if (!user) return
@@ -123,7 +122,7 @@ export default function UserManagementPage({ params }: { params: Promise<any> }:
       setSaving(true)
       setError("")
       
-      const response = await fetch(`/api/admin/users/${params.id}`, {
+      const response = await fetch(`/api/admin/users/${resolvedParams.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json"
@@ -142,7 +141,24 @@ export default function UserManagementPage({ params }: { params: Promise<any> }:
       }
 
       setSuccess("User updated successfully")
-      await fetchUser() // Refresh user data
+      
+      // Refresh user data
+      try {
+        const refreshResponse = await fetch(`/api/admin/users/${resolvedParams.id}`)
+        if (refreshResponse.ok) {
+          const refreshData = await refreshResponse.json()
+          const userData = refreshData.user
+          setUser(userData)
+          
+          // Update form state
+          setSelectedRole(userData.role)
+          setBio(userData.bio || "")
+          setExpertise(userData.expertise || "")
+          setLocation(userData.location || "")
+        }
+      } catch (refreshError) {
+        console.error("Error refreshing user data:", refreshError)
+      }
       
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(""), 3000)
@@ -166,7 +182,7 @@ export default function UserManagementPage({ params }: { params: Promise<any> }:
       setDeleting(true)
       setError("")
       
-      const response = await fetch(`/api/admin/users/${params.id}`, {
+      const response = await fetch(`/api/admin/users/${resolvedParams.id}`, {
         method: "DELETE"
       })
 
