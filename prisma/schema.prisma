@@ -1,0 +1,208 @@
+// prisma/schema.prisma - Temporary Schema Without Unique Constraint
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Core dictionary word model
+model Word {
+  id        String   @id @default(cuid())
+  word      String   // Remove @unique temporarily
+  phoneme   String
+  meaning   String
+  
+  // Future fields (currently optional)
+  partOfSpeech String?
+  exampleUsage String?
+  
+  // Metadata
+  completionStatus CompletionStatus @default(INCOMPLETE)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  
+  // Relationships
+  contributions WordContribution[]
+  flags         WordFlag[]
+  
+  // Indexes for search performance
+  @@index([word])
+  @@index([meaning])
+  @@index([phoneme])
+  @@index([completionStatus])
+}
+
+// Keep all your other models exactly the same...
+// (copying the rest of your schema)
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  avatar        String?
+  password      String?
+  role          Role      @default(USER)
+  
+  bio                String?
+  expertise          String?
+  location           String?
+  contributionCount  Int     @default(0)
+  approvalCount      Int     @default(0)
+  reputation         Int     @default(0)
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  lastActive DateTime @default(now())
+  
+  accounts Account[]
+  sessions Session[]
+  
+  contributions         WordContribution[]
+  reviewedContributions WordContribution[] @relation("ReviewedContributions")
+  flags                 WordFlag[]
+  resolvedFlags         WordFlag[]         @relation("ResolvedFlags")
+}
+
+model WordContribution {
+  id        String   @id @default(cuid())
+  wordId    String
+  userId    String
+  
+  type        ContributionType
+  status      ContributionStatus @default(PENDING)
+  
+  originalData Json?
+  proposedData Json
+  
+  reviewedAt    DateTime?
+  reviewedById  String?
+  reviewedBy    User?    @relation("ReviewedContributions", fields: [reviewedById], references: [id])
+  reviewNotes   String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  word   Word @relation(fields: [wordId], references: [id])
+  user   User @relation(fields: [userId], references: [id])
+  
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+}
+
+enum Role {
+  USER
+  CONTRIBUTOR
+  MODERATOR
+  EXPERT
+  ADMIN
+}
+
+enum CompletionStatus {
+  COMPLETE
+  INCOMPLETE
+}
+
+enum ContributionType {
+  ADD_WORD
+  UPDATE_WORD
+  DELETE_WORD
+  ADD_PHONEME
+  ADD_MEANING
+  ADD_USAGE
+  CORRECT_ERROR
+}
+
+enum ContributionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  NEEDS_REVIEW
+}
+
+enum ReviewDecision {
+  APPROVE
+  REJECT
+  REQUEST_CHANGES
+}
+
+model WordFlag {
+  id       String @id @default(cuid())
+  wordId   String
+  userId   String
+  
+  reason      FlagReason
+  description String
+  status      FlagStatus @default(OPEN)
+  
+  resolvedAt   DateTime?
+  resolvedById String?
+  resolvedBy   User?     @relation("ResolvedFlags", fields: [resolvedById], references: [id])
+  resolution   String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  word Word @relation(fields: [wordId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  
+  @@index([status])
+  @@index([reason])
+}
+
+enum FlagReason {
+  INCORRECT_MEANING
+  INCORRECT_PHONEME
+  INAPPROPRIATE_CONTENT
+  DUPLICATE_ENTRY
+  SPAM
+  OTHER
+}
+
+enum FlagStatus {
+  OPEN
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
