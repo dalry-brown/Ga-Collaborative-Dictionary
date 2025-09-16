@@ -1,8 +1,8 @@
-// app/api/contributions/route.ts - Fixed to Match Your Schema
+// app/api/contributions/route.ts - Fixed to use auth-simple.ts
 
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { authOptions } from "@/lib/auth-simple" // Fixed: Use auth-simple instead of auth
 import { db } from "@/lib/db"
 import { z } from "zod"
 import { ContributionType, ContributionStatus, Prisma } from "@prisma/client"
@@ -40,8 +40,18 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session?.user?.id) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // Get user from database using email since that's what we have in session
+    const user = await db.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true, role: true }
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -52,7 +62,7 @@ export async function GET(request: NextRequest) {
 
     // Build where clause with proper typing
     const where: ContributionWhereInput = {
-      userId: session.user.id,
+      userId: user.id,
     }
 
     if (statusParam && Object.values(ContributionStatus).includes(statusParam as ContributionStatus)) {
@@ -100,8 +110,18 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session?.user?.id) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // Get user from database using email
+    const user = await db.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true, email: true, role: true }
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const body = await request.json()
@@ -111,6 +131,24 @@ export async function POST(request: NextRequest) {
     let targetWordId: string
 
     if (type === "ADD_WORD") {
+      // Check if word already exists
+      if (proposedData.word) {
+        const existingWord = await db.word.findFirst({
+          where: { 
+            word: {
+              equals: proposedData.word,
+              mode: 'insensitive'
+            }
+          }
+        })
+
+        if (existingWord) {
+          return NextResponse.json({ 
+            error: "This word already exists in the dictionary" 
+          }, { status: 409 })
+        }
+      }
+
       // For ADD_WORD, we need to create a temporary word first or use a special handling
       // Since your schema requires wordId, we'll create a placeholder word
       const placeholderWord = await db.word.create({
@@ -178,7 +216,7 @@ export async function POST(request: NextRequest) {
     // Create contribution with required wordId
     const contributionData: Prisma.WordContributionUncheckedCreateInput = {
       type: type as ContributionType,
-      userId: session.user.id,
+      userId: user.id,
       wordId: targetWordId, // Now always has a value
       status: "PENDING" as ContributionStatus,
       proposedData: proposedData as Prisma.InputJsonValue,
