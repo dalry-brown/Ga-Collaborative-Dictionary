@@ -196,7 +196,7 @@ export function Header() {
                   Login
                 </Link>
                 <Link
-                  href="/auth/signin"
+                  href="/auth/signup"
                   className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white rounded-lg text-sm font-medium transition-all shadow-sm"
                 >
                   Sign Up

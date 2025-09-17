@@ -83,7 +83,7 @@ export default function AboutPage() {
       </section>
 
       {/* Impact Stats */}
-      <section className="py-16 bg-gradient-to-br from-gray-50 to-blue-50">
+      {/* <section className="py-16 bg-gradient-to-br from-gray-50 to-blue-50">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Our Growing Impact</h2>
@@ -109,7 +109,7 @@ export default function AboutPage() {
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* How It Works */}
       <section className="py-16 bg-white">
@@ -176,7 +176,7 @@ export default function AboutPage() {
       </section>
 
       {/* Team Section */}
-      <section className="py-16 bg-gradient-to-br from-gray-50 to-blue-50">
+      {/* <section className="py-16 bg-gradient-to-br from-gray-50 to-blue-50">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Our Team</h2>
@@ -223,7 +223,7 @@ export default function AboutPage() {
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Technology Section */}
       <section className="py-16 bg-white">

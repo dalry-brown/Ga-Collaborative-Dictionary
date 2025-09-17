@@ -253,7 +253,7 @@ export default function UserFlagsPage() {
               {`You haven't flagged any words yet. Help us improve the dictionary by reporting issues you find.`}
             </p>
             <Link
-              href="/"
+              href="/browse"
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
               Browse Dictionary
