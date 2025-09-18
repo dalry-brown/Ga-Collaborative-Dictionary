@@ -1,4 +1,4 @@
-// app/api/contributions/route.ts - Fixed to use auth-simple.ts
+// app/api/contributions/route.ts - Minimal fix to handle both field names
 
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
@@ -14,8 +14,8 @@ const contributionSchema = z.object({
     word: z.string().optional(),
     phoneme: z.string().optional(),
     meaning: z.string().optional(),
-    partOfSpeech: z.string().optional(),
-    exampleUsage: z.string().optional(),
+    partOfSpeech: z.string().optional().nullable(), // Fixed: Allow null
+    exampleUsage: z.string().optional().nullable(), // Fixed: Allow null  
     reason: z.string().optional(),
   })
 })
@@ -125,6 +125,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
+    console.log("Received body:", JSON.stringify(body, null, 2))
+
+    // MINIMAL FIX: Handle both 'data' and 'proposedData' field names
+    if (body.data && !body.proposedData) {
+      body.proposedData = body.data
+      console.log("Converted 'data' to 'proposedData'")
+    }
+
     const { type, wordId, proposedData } = contributionSchema.parse(body)
 
     let originalData: OriginalWordData | null = null
@@ -227,6 +235,8 @@ export async function POST(request: NextRequest) {
       data: contributionData
     })
 
+    console.log("Contribution created successfully:", contribution.id)
+
     // Fetch the contribution with relationships
     const fullContribution = await db.wordContribution.findUnique({
       where: { id: contribution.id },
@@ -241,19 +251,22 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json({
+      success: true,
       message: "Contribution submitted successfully",
       contribution: fullContribution
     }, { status: 201 })
 
   } catch (error) {
+    console.error("Error creating contribution:", error)
+    
     if (error instanceof z.ZodError) {
+      console.error("Validation errors:", error.errors)
       return NextResponse.json({
         error: "Invalid data",
         details: error.errors
       }, { status: 400 })
     }
 
-    console.error("Error creating contribution:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

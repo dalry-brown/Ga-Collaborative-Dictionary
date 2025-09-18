@@ -1,10 +1,10 @@
-// app/my-contributions/page.tsx - User Contribution History
+// app/my-contributions/page.tsx - User Contribution History with Smart Back Navigation
 
 "use client"
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { 
   ArrowLeft,
@@ -16,7 +16,8 @@ import {
   Eye,
   Search,
   Filter,
-  Calendar
+  Calendar,
+  Home
 } from "lucide-react"
 
 interface Contribution {
@@ -57,6 +58,7 @@ interface ContributionsResponse {
 export default function MyContributionsPage() {
   const { data: session } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [contributions, setContributions] = useState<Contribution[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -71,6 +73,47 @@ export default function MyContributionsPage() {
     pending: 0,
     rejected: 0
   })
+
+  // Smart back navigation
+  const getBackButtonConfig = () => {
+    const from = searchParams.get('from')
+    const referer = searchParams.get('ref')
+    
+    // Priority order: from param > referer param > browser history > home
+    if (from) {
+      const routes: Record<string, { path: string; label: string }> = {
+        'profile': { path: '/profile', label: 'Back to Profile' },
+        'dashboard': { path: '/dashboard', label: 'Back to Dashboard' },
+        'admin': { path: '/admin', label: 'Back to Admin' },
+        'browse': { path: '/browse', label: 'Back to Browse' },
+        'contribute': { path: '/contribute', label: 'Back to Contribute' },
+        'home': { path: '/', label: 'Back to Home' }
+      }
+      return routes[from] || { path: '/', label: 'Back to Home' }
+    }
+    
+    if (referer) {
+      return { path: referer, label: 'Go Back' }
+    }
+    
+    // Default fallback
+    return { path: '/', label: 'Back to Home' }
+  }
+
+  const handleBackNavigation = () => {
+    const backConfig = getBackButtonConfig()
+    
+    // Try browser back first if no specific route is set
+    if (!searchParams.get('from') && !searchParams.get('ref')) {
+      if (window.history.length > 1) {
+        router.back()
+        return
+      }
+    }
+    
+    // Otherwise use the configured path
+    router.push(backConfig.path)
+  }
 
   useEffect(() => {
     if (!session) {
@@ -176,6 +219,8 @@ export default function MyContributionsPage() {
     )
   }
 
+  const backConfig = getBackButtonConfig()
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -183,15 +228,18 @@ export default function MyContributionsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <Link href="/profile" className="flex items-center text-gray-600 hover:text-gray-900">
+              <button 
+                onClick={handleBackNavigation}
+                className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+              >
                 <ArrowLeft className="w-5 h-5 mr-2" />
-                Back to Profile
-              </Link>
+                {backConfig.label}
+              </button>
             </div>
             <h1 className="text-lg font-medium text-gray-900">My Contributions</h1>
             <Link
               href="/contribute"
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               <Plus className="w-4 h-4 mr-2" />
               New Contribution
@@ -240,7 +288,7 @@ export default function MyContributionsPage() {
                 </div>
                 <button
                   onClick={handleSearch}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 transition-colors"
                 >
                   Search
                 </button>
@@ -297,7 +345,7 @@ export default function MyContributionsPage() {
           {contributions.length > 0 ? (
             <div className="divide-y divide-gray-200">
               {contributions.map((contribution) => (
-                <div key={contribution.id} className="p-6 hover:bg-gray-50">
+                <div key={contribution.id} className="p-6 hover:bg-gray-50 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-2">
@@ -387,7 +435,7 @@ export default function MyContributionsPage() {
               </p>
               <Link
                 href="/contribute"
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Make Your First Contribution
@@ -406,14 +454,14 @@ export default function MyContributionsPage() {
                   <button
                     onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1 || loading}
-                    className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 hover:bg-gray-50"
+                    className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 hover:bg-gray-50 transition-colors"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                     disabled={currentPage === totalPages || loading}
-                    className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 hover:bg-gray-50"
+                    className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 hover:bg-gray-50 transition-colors"
                   >
                     Next
                   </button>

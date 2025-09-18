@@ -1,4 +1,4 @@
-// app/profile/page.tsx - User Profile Page
+// app/profile/page.tsx - Fixed User Profile Page with Navigation
 
 "use client"
 
@@ -6,6 +6,7 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+
 import { 
   User, 
   Edit3, 
@@ -17,7 +18,9 @@ import {
   Award,
   BookOpen,
   Flag,
-  Clock
+  Clock,
+  ChevronLeft,
+  ArrowLeft
 } from "lucide-react"
 
 interface UserProfile {
@@ -142,6 +145,14 @@ export default function ProfilePage() {
     setError("")
   }
 
+  const handleGoBack = () => {
+    if (window.history.length > 1) {
+      router.back()
+    } else {
+      router.push("/")
+    }
+  }
+
   const getRoleColor = (role: string) => {
     const roleColors: Record<string, string> = {
       USER: "bg-gray-100 text-gray-800",
@@ -153,7 +164,7 @@ export default function ProfilePage() {
     return roleColors[role] || "bg-gray-100 text-gray-800"
   }
 
-  if (loading) {
+        if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
@@ -163,12 +174,28 @@ export default function ProfilePage() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-600 mb-4">{error || "Profile not found"}</div>
-          <Link href="/" className="text-blue-600 hover:text-blue-500">
-            Back to Home
-          </Link>
+      <div className="min-h-screen bg-gray-50">
+        {/* Top Navigation for Error State */}
+        <div className="absolute top-6 left-6 z-10">
+          <button
+            onClick={handleGoBack}
+            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 hover:shadow-md"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </button>
+        </div>
+        
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="text-red-600 mb-4">{error || "Profile not found"}</div>
+            <button
+              onClick={handleGoBack}
+              className="text-blue-600 hover:text-blue-500"
+            >
+              Go Back
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -176,7 +203,33 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* Top Navigation - Professional Corner Placement */}
+      <div className="absolute top-6 left-6 z-10">
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={handleGoBack}
+            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 hover:shadow-md"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </button>
+          <nav className="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200" aria-label="Breadcrumb">
+            <ol className="flex items-center space-x-2 text-sm">
+              <li>
+                <Link href="/" className="text-gray-500 hover:text-gray-900 transition-colors">
+                  Home
+                </Link>
+              </li>
+              <li className="flex items-center">
+                <ChevronLeft className="w-4 h-4 mx-1 rotate-180 text-gray-300" />
+                <span className="text-gray-900 font-medium">Profile</span>
+              </li>
+            </ol>
+          </nav>
+        </div>
+      </div>
+
+      {/* Profile Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-6">
@@ -233,7 +286,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Profile Information */}
           <div className="lg:col-span-2 space-y-6">
@@ -382,6 +435,13 @@ export default function ProfilePage() {
                 >
                   <BookOpen className="w-4 h-4 mr-3" />
                   Add New Words
+                </Link>
+                <Link
+                  href="/my-contributions"
+                  className="w-full flex items-center px-3 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  <BookOpen className="w-4 h-4 mr-3" />
+                  My Contributions
                 </Link>
                 <Link
                   href="/flags"

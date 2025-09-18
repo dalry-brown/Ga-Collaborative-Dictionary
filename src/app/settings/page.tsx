@@ -1,10 +1,10 @@
-// app/settings/page.tsx - User Settings Page
+// app/settings/page.tsx - User Settings Page with Smart Back Navigation
 
 "use client"
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { 
   ArrowLeft,
@@ -15,7 +15,8 @@ import {
   Key,
   Trash2,
   Save,
-  AlertTriangle
+  AlertTriangle,
+  Home
 } from "lucide-react"
 
 interface UserSettings {
@@ -30,6 +31,7 @@ interface UserSettings {
 export default function SettingsPage() {
   const { data: session } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [settings, setSettings] = useState<UserSettings>({
     emailNotifications: true,
     contributionNotifications: true,
@@ -43,6 +45,48 @@ export default function SettingsPage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  // Smart back navigation
+  const getBackButtonConfig = () => {
+    const from = searchParams.get('from')
+    const referer = searchParams.get('ref')
+    
+    // Priority order: from param > referer param > browser history > home
+    if (from) {
+      const routes: Record<string, { path: string; label: string }> = {
+        'profile': { path: '/profile', label: 'Back to Profile' },
+        'dashboard': { path: '/dashboard', label: 'Back to Dashboard' },
+        'admin': { path: '/admin', label: 'Back to Admin' },
+        'browse': { path: '/browse', label: 'Back to Browse' },
+        'contribute': { path: '/contribute', label: 'Back to Contribute' },
+        'my-contributions': { path: '/my-contributions', label: 'Back to My Contributions' },
+        'home': { path: '/', label: 'Back to Home' }
+      }
+      return routes[from] || { path: '/', label: 'Back to Home' }
+    }
+    
+    if (referer) {
+      return { path: referer, label: 'Go Back' }
+    }
+    
+    // Default fallback
+    return { path: '/', label: 'Back to Home' }
+  }
+
+  const handleBackNavigation = () => {
+    const backConfig = getBackButtonConfig()
+    
+    // Try browser back first if no specific route is set
+    if (!searchParams.get('from') && !searchParams.get('ref')) {
+      if (window.history.length > 1) {
+        router.back()
+        return
+      }
+    }
+    
+    // Otherwise use the configured path
+    router.push(backConfig.path)
+  }
 
   useEffect(() => {
     if (!session) {
@@ -129,6 +173,8 @@ export default function SettingsPage() {
     )
   }
 
+  const backConfig = getBackButtonConfig()
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -136,10 +182,13 @@ export default function SettingsPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <Link href="/profile" className="flex items-center text-gray-600 hover:text-gray-900">
+              <button 
+                onClick={handleBackNavigation}
+                className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+              >
                 <ArrowLeft className="w-5 h-5 mr-2" />
-                Back to Profile
-              </Link>
+                {backConfig.label}
+              </button>
             </div>
             <h1 className="text-lg font-medium text-gray-900">Account Settings</h1>
           </div>
@@ -309,7 +358,7 @@ export default function SettingsPage() {
             <button
               onClick={handleSaveSettings}
               disabled={saving}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               <Save className="w-4 h-4 mr-2" />
               {saving ? "Saving..." : "Save Settings"}
@@ -337,13 +386,13 @@ export default function SettingsPage() {
                     <>
                       <button
                         onClick={() => setShowDeleteConfirm(false)}
-                        className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                        className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={handleDeleteAccount}
-                        className="inline-flex items-center px-3 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700"
+                        className="inline-flex items-center px-3 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors"
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
                         Confirm Delete
@@ -352,7 +401,7 @@ export default function SettingsPage() {
                   ) : (
                     <button
                       onClick={handleDeleteAccount}
-                      className="inline-flex items-center px-3 py-2 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100"
+                      className="inline-flex items-center px-3 py-2 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
                       Delete Account
