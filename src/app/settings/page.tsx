@@ -1,8 +1,8 @@
-// app/settings/page.tsx - User Settings Page with Smart Back Navigation
+// app/settings/page.tsx - User Settings Page with Suspense Boundary
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -28,7 +28,7 @@ interface UserSettings {
   showLocation: boolean
 }
 
-export default function SettingsPage() {
+function SettingsContent() {
   const { data: session } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -414,5 +414,17 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    }>
+      <SettingsContent />
+    </Suspense>
   )
 }
