@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Forward request to Python backend
-    const response = await fetch('https://ga-phoneme-backend.onrender.com/api/g2p', {
+    const response = await fetch('https://ga-g2p-api.onrender.com/api/g2p', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -51,7 +51,7 @@ export async function GET() {
   return NextResponse.json({
     service: 'Ga G2P Frontend API',
     version: '1.0.0',
-    backend: 'https://ga-phoneme-backend.onrender.com',
+    backend: 'https://ga-g2p-api.onrender.com',
     endpoints: {
       'POST /api/g2p': 'Convert text to phonemes',
     }
